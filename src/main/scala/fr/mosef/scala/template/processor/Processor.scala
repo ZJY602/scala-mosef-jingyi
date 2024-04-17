@@ -3,7 +3,7 @@ package fr.mosef.scala.template.processor
 import org.apache.spark.sql.DataFrame
 
 trait Processor {
-
-  def process(inputDF: DataFrame) : DataFrame
-
+  def processCsv(inputDF: DataFrame): DataFrame
+  def processParquet(inputDF: DataFrame): DataFrame
+  def processFile(inputDF: DataFrame, fileType: String): DataFrame
 }

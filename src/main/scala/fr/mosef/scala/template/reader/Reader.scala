@@ -10,4 +10,7 @@ trait Reader {
 
   def read(): DataFrame
 
+  // Ajouter cette nouvelle méthode
+  def readParquet(path: String): DataFrame
 }
+
