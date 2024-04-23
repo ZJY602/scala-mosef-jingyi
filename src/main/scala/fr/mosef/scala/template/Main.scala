@@ -12,44 +12,18 @@ import com.globalmentor.apache.hadoop.fs.BareLocalFileSystem
 import org.apache.hadoop.fs.FileSystem
 
 object Main extends App with Job {
-
   val cliArgs = args
-  val MASTER_URL: String = try {
-    cliArgs(0)
-  } catch {
-    case e: java.lang.ArrayIndexOutOfBoundsException => "local[1]"
-  }
-  val srcCsvPath: String = try {
-    cliArgs(1)
-  } catch {
-    case e: java.lang.ArrayIndexOutOfBoundsException => {
-      "./input/test1.csv"  // Default CSV file path
-    }
-  }
-  val dstCsvPath: String = try {
-    cliArgs(2)
-  } catch {
-    case e: java.lang.ArrayIndexOutOfBoundsException => {
-      "./default/output-writer-csv"  // Default CSV output path
-    }
-  }
-  val srcParquetPath: String = try {
-    cliArgs(3)
-  } catch {
-    case e: java.lang.ArrayIndexOutOfBoundsException => {
-      "./input/Iris.parquet"  // Default Parquet file path
-    }
-  }
-  val dstParquetPath: String = try {
-    cliArgs(4)
-  } catch {
-    case e: java.lang.ArrayIndexOutOfBoundsException => {
-      "./default/output-writer-parquet"  // Default Parquet output path
-    }
-  }
+  val processCsv = cliArgs.contains("default")
+  val processParquet = cliArgs.contains("--parquet")
+
+  val MASTER_URL: String = cliArgs.lift(0).getOrElse("local[1]")
+  val srcCsvPath: String = cliArgs.lift(1).getOrElse("./input/test1.csv")
+  val dstCsvPath: String = cliArgs.lift(2).getOrElse("./default/output-writer-csv")
+  val srcParquetPath: String = cliArgs.lift(3).getOrElse("./input/Iris.parquet")
+  val dstParquetPath: String = cliArgs.lift(4).getOrElse("./default/output-writer-parquet")
 
   val conf = new SparkConf()
-  conf.set("spark.testing.memory", "471859200") //best change !!
+  conf.set("spark.testing.memory", "471859200")
 
   val sparkSession = SparkSession
     .builder
@@ -62,34 +36,32 @@ object Main extends App with Job {
   sparkSession
     .sparkContext
     .hadoopConfiguration
-    .setClass("fs.file.impl",  classOf[BareLocalFileSystem], classOf[FileSystem])
+    .setClass("fs.file.impl", classOf[BareLocalFileSystem], classOf[FileSystem])
 
   val reader: Reader = new ReaderImpl(sparkSession)
   val processor: Processor = new ProcessorImpl(sparkSession)
   val writer: Writer = new Writer()
-  val src_path = srcCsvPath
-  val dst_path = dstCsvPath
-  val PARQUET_SRC_PATH = srcParquetPath
-  val PARQUET_DST_PATH = dstParquetPath
 
-  // CSV Data Processing
-  val inputDF: DataFrame = reader.read(src_path)
-  val processedDF: DataFrame = processor.processCsv(inputDF)
-  //writer.writeCsv(processedDF, "overwrite", dst_path)
-  writer.writeCsv(processedDF, SaveMode.Overwrite, dst_path)
+  if (processCsv && srcCsvPath.endsWith(".csv")) {
+    val inputDF: DataFrame = reader.read(srcCsvPath)
+    val processedDF: DataFrame = processor.processCsv(inputDF)
 
-  // Parquet Data Processing
-  val inputParquetDF: DataFrame = reader.readParquet(PARQUET_SRC_PATH)
-  inputParquetDF.printSchema()  // Ajoutez cette ligne pour imprimer le schéma et vérifier les noms de colonnes
+    val csvOutputPath = if (dstCsvPath.endsWith(".csv")) {
+      dstCsvPath
+    } else if (dstCsvPath.endsWith("/")) {
+      s"${dstCsvPath}output-writer-csv"
+    } else {
+      s"${dstCsvPath}/output-writer-csv"
+    }
 
-  val processedParquetDF: DataFrame = processor.processParquet(inputParquetDF)
-  //writer.writeParquet(processedParquetDF, "overwrite", PARQUET_DST_PATH)
-  writer.writeParquet(processedParquetDF, SaveMode.Overwrite, PARQUET_DST_PATH)
+    println(s"CSV Output Path: $csvOutputPath")
+    writer.writeCsv(processedDF, SaveMode.Overwrite, csvOutputPath)
+  }
 
-  // Traitement conditionnel basé sur l'extension du fichier
-  if (srcCsvPath.endsWith(".csv")) {
-    processCsv(sparkSession) // Méthode du trait Job
-  } else if (srcParquetPath.endsWith(".parquet")) {
-    processParquet(sparkSession) // Méthode du trait Job
+  if (processParquet && srcParquetPath.endsWith(".parquet")) {
+    val inputParquetDF: DataFrame = reader.readParquet(srcParquetPath)
+    inputParquetDF.printSchema()  // Print the schema for debugging
+    val processedParquetDF: DataFrame = processor.processParquet(inputParquetDF)
+    writer.writeParquet(processedParquetDF, SaveMode.Overwrite, dstParquetPath)
   }
 }

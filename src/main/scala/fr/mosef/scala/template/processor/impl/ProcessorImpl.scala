@@ -29,14 +29,14 @@ class ProcessorImpl(spark: SparkSession) extends Processor {
     // Implement the file processing logic based on fileType
     fileType match {
       case "csv" => processCsv(inputDF)
-      // Add cases for other file types if needed
+      case "parquet" => processParquet(inputDF)
       case _ => throw new IllegalArgumentException(s"Unsupported file type: $fileType")
     }
   }
 
-
   def processParquet(inputDF: DataFrame): DataFrame = {
-    inputDF.filter(col("variety") === "Setosa")
+    inputDF
+      .filter(col("variety") === "Setosa")
       .groupBy("variety")
       .agg(
         avg(col("`sepal.length`")).as("avg_sepal_length"),
